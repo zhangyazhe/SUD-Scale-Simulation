@@ -11,6 +11,7 @@
 #include <random>
 #include <map>
 #include <assert.h>
+#include <math.h>
 #include "main.h"
 
 using namespace std;
@@ -34,17 +35,24 @@ void InitDisks() {
         vector<int> disk;
         disks.push_back(disk);
     }
-    //获取随机数种子
-    unsigned seed = chrono::system_clock::now().time_since_epoch().count();
-    shuffle(vec_temp.begin(), vec_temp.end(), default_random_engine(seed));
     int cur_stripe_num = 0;
-    for (int i = 0; i < g_N; i++) {
-        int select = vec_temp[i];
-        disks[select].push_back(cur_stripe_num);
-        block_location[cur_stripe_num].push_back(select);
+    int quit_shuffle = 0;
+    while (true) {
+        //获取随机数种子
+        unsigned seed = chrono::system_clock::now().time_since_epoch().count();
+        shuffle(vec_temp.begin(), vec_temp.end(), default_random_engine(seed));
+        for (int i = 0; i < g_N; i++) {
+            int select = vec_temp[i];
+            disks[select].push_back(cur_stripe_num);
+            block_location[cur_stripe_num].push_back(select);
+            if (disks[select].size() >= g_N * g_StripeNum / g_DiskNumOrigin) {
+                quit_shuffle = 1;
+            }
+        }
+        cur_stripe_num++;
+        if (quit_shuffle == 1) break;
     }
-    cur_stripe_num++;
-    /*完成了第一次的shuffle，接下来按照每个节点中块数升序排序。思路为构建vector<pair<节点号, 块数> >，
+    /*完成了前期的shuffle，接下来按照每个节点中块数升序排序。思路为构建vector<pair<节点号, 块数> >，
     然后根据块数排序.这个方法时间复杂度较高，有待改进*/
     vector<pair<int, int> > pii;
     while (cur_stripe_num < g_StripeNum) {
@@ -130,8 +138,6 @@ pair<int, int> SelectTravelBlock(int disk, int bottleneck_disk){
         vector<int> & vec_temp = block_location[disks[disk][i]];
         if (find(vec_temp.begin(), vec_temp.end(), bottleneck_disk) == vec_temp.end()) {
             //当前块没有与bottleneck_disk关联
-            cout << "debug" << endl;
-
             continue;
         } else {
             //当前块与bottleneck_disk有关联
@@ -168,7 +174,7 @@ pair<int, int> SelectTravelBlock(int disk, int bottleneck_disk){
         }
     }
     if (has_found == 0) {
-        cout << "采用次优解" << endl;
+        cout << "采用次优解：";
         return plan_b;
     }
 }

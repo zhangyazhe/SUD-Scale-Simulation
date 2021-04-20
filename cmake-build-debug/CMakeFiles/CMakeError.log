@@ -1,0 +1,20 @@
+Detecting C [-std=c11] compiler features failed to compile with the following output:
+Change Dir: /Users/zhangyazhe/MyFiles/C:C++Projects/SUD_Scale_Simulation/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_fcb3c/fast"
+/Library/Developer/CommandLineTools/usr/bin/make -f CMakeFiles/cmTC_fcb3c.dir/build.make CMakeFiles/cmTC_fcb3c.dir/build
+CMakeFiles/cmTC_fcb3c.dir/build.make:64: *** target pattern contains no `%'.  Stop.
+make: *** [cmTC_fcb3c/fast] Error 2
+
+
+
+Detecting CXX [-std=c++1z] compiler features failed to compile with the following output:
+Change Dir: /Users/zhangyazhe/MyFiles/C:C++Projects/SUD_Scale_Simulation/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_322ef/fast"
+/Library/Developer/CommandLineTools/usr/bin/make -f CMakeFiles/cmTC_322ef.dir/build.make CMakeFiles/cmTC_322ef.dir/build
+CMakeFiles/cmTC_322ef.dir/build.make:64: *** target pattern contains no `%'.  Stop.
+make: *** [cmTC_322ef/fast] Error 2
+
+
+

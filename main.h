@@ -14,10 +14,10 @@
 #include <unordered_map>
 using namespace std;
 
-const int g_DiskNumOrigin = 20;
-const int g_DiskNumAfterScale = 30;
+const int g_DiskNumOrigin = 6;
+const int g_DiskNumAfterScale = 8;
 const int g_MaxDiskNum = 10000;
-const int g_StripeNum = 600;
+const int g_StripeNum = 60;
 const int g_N = 4;
 const int g_K = 3;
 const int g_Optimal = 1 + (g_K * g_StripeNum * g_N) / (g_DiskNumAfterScale * (g_DiskNumAfterScale - 1));
