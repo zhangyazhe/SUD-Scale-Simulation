@@ -110,18 +110,15 @@ void InitGraph() {
             }
         }
     }
-    //测试
-    if (g_Debug == 1) {
-        cout << "===== InitGraph =====" << endl;
-        cout << "测试邻接矩阵：" << endl;
-        for (int i = 0; i < g_DiskNumOrigin; i++) {
-            for (int j = 0; j < g_DiskNumOrigin; j++) {
-                cout << G[i][j] << " ";
-            }
-            cout << endl;
+    if (g_Evaluation == 0)
+        cout << "根据随机数据生成的邻接矩阵：" << endl;
+    for (int i = 0; i < g_DiskNumOrigin; i++) {
+        for (int j = 0; j < g_DiskNumOrigin; j++) {
+            cout << G[i][j] << " ";
         }
-        cout << "===== end =====" << endl << endl;
+        cout << endl;
     }
+    cout << endl;
 }
 
 /**
@@ -132,7 +129,8 @@ void InitGraph() {
  */
 pair<int, int> SelectTravelBlock(int disk, int bottleneck_disk){
     int has_found = 0;//标记是否找到了符合要求的块
-    pair<int, int> plan_b;//当最优解没有找到时，plan_b记录的是当采取非最优方案时的迁移目标节点
+    pair<int, int> plan_b = make_pair(-1, -1);//当最优解没有找到时，plan_b记录的是当采取非最优方案时的迁移目标节点
+    pair<int, int> plan_c = make_pair(-1, -1);
     //遍历disk中的每一个块，判断是否满足迁移条件
     for (int i = 0; i < disks[disk].size(); i++) {
         vector<int> & vec_temp = block_location[disks[disk][i]];
@@ -151,6 +149,7 @@ pair<int, int> SelectTravelBlock(int disk, int bottleneck_disk){
                     //检查当前新节点上是否还有位置
                     if (disks[j].size() >= g_N * g_StripeNum / g_DiskNumAfterScale) {
                         //当前新节点没有位置了
+                        plan_c = make_pair(disks[disk][i], j);
                         continue;
                     } else {
                         //当前新节点上还有位置
@@ -174,8 +173,12 @@ pair<int, int> SelectTravelBlock(int disk, int bottleneck_disk){
         }
     }
     if (has_found == 0) {
-        cout << "采用次优解：";
-        return plan_b;
+        if (g_Evaluation == 0)
+            cout << "采用次优解：";
+        if (plan_b.first != -1)
+            return plan_b;
+        else
+            return plan_c;
     }
 }
 
@@ -204,7 +207,12 @@ void SUDExpand() {
                 disks.push_back(new_disk);
             }
             pair<int, int> travel_pair = SelectTravelBlock(i, bottleneck_disk);
-            cout << "将" << i << "节点的" << travel_pair.first << "块迁移至" << travel_pair.second << "节点" << endl;
+            if (travel_pair.first == -1) {
+                cout << "fatal error" << endl;
+                return;
+            }
+            if (g_Evaluation == 0)
+                cout << "将" << i << "节点的" << travel_pair.first << "块迁移至" << travel_pair.second << "节点" << endl;
             //对边进行增删调整
             vector<int> & vec_temp = block_location[travel_pair.first];
             int travel_target_disk = travel_pair.second;
@@ -227,43 +235,232 @@ void SUDExpand() {
 
         }
     }
-    //测试
-    if (g_Debug == 1) {
-        cout << "===== SUDExpand =====" << endl;
-        //检查是否达到理想最优解
+    //检查是否达到理想最优解
+    if (g_Evaluation == 0)
         cout << "理想最优解为" << g_Optimal << endl;
-        cout << "扩展后的邻接矩阵：" << endl;
-        int is_optimal = 1;
-        for (int i = 0; i < g_DiskNumAfterScale; i++) {
-            for (int j = 0; j < g_DiskNumAfterScale; j++) {
-                cout << G[i][j] << " ";
-                if (G[i][j] > g_Optimal) {
-                    is_optimal = 0;
-                }
+    cout << "SUD扩展后的邻接矩阵：" << endl;
+    int is_optimal = 1;
+    for (int i = 0; i < g_DiskNumAfterScale; i++) {
+        for (int j = 0; j < g_DiskNumAfterScale; j++) {
+            cout << G[i][j] << " ";
+            if (G[i][j] > g_Optimal) {
+                is_optimal = 0;
             }
-            cout << endl;
         }
+        cout << endl;
+    }
+    if (g_Evaluation == 0) {
         if (is_optimal == 1) {
             cout << "得到理想最优解" << endl;
         } else {
             cout << "未能得到理想最优解" << endl;
         }
-        cout << "===== end =====" << endl << endl;
     }
+}
+
+/**
+ * @brief   缩容过程中，寻找应该将指定块迁移到哪个容器中
+ * @param   block_no    要被迁移的块号
+ */
+int FindTargetDisk(int block_no){
+    //计算缩容后每个节点的期望块数
+    int disk_block_num = g_N * g_StripeNum / g_DiskNumAfterScale;
+    vector<int>::iterator it;
+    int plan_b = -1;
+    for (int i = 0; i < g_DiskNumAfterScale; i++) {
+        it = find(disks[i].begin(), disks[i].end(), block_no);
+        if (it != disks[i].end()) {
+            //当前节点中已经有了和block_no在同一个条带的块
+            continue;
+        } else {
+            //当前节点中没有和block_no在同一个条带的块
+            if (disks[i].size() + 1 > disk_block_num) {
+                //当前节点已经没有位置
+                plan_b = i;
+                continue;
+            } else {
+                //当前节点还有位置
+                plan_b = i;
+                //判断如果转移到这个节点，是否会破坏理论最优解
+                int is_OK = 1;
+                for (int j = 0; j < block_location[block_no].size(); j++) {
+                    if (G[i][block_location[block_no][j]] + 1 > g_Optimal) {
+                        is_OK = 0;
+                        break;
+                    }
+                }
+                if (is_OK) {
+                    //找到了合适的目标节点
+                    return i;
+                }
+            }
+        }
+    }
+    if (g_Evaluation == 0)
+        cout << "采用次优解：";
+    return plan_b;
 }
 
 /**
  * @brief   缩容函数
  */
 void SUDShrink(){
-    //TODO
+    vector<int>::iterator it;
+    for (int i = g_DiskNumAfterScale; i < g_DiskNumOrigin; i++) {
+        while (!disks[i].empty()) {
+            it = disks[i].begin();
+            int block_temp = *it;
+            disks[i].erase(it);
+            for (int j = 0; j < block_location[block_temp].size(); j++) {
+                if (block_location[block_temp][j] == i) continue;
+                G[i][block_location[block_temp][j]]--;
+                G[block_location[block_temp][j]][i]--;
+            }
+            it = find(block_location[block_temp].begin(), block_location[block_temp].end(), i);
+            block_location[block_temp].erase(it);
+            int target_disk = FindTargetDisk(block_temp);
+            if (target_disk == -1) {
+                cout << "fatal error" << endl;
+                return;
+            }
+            if (g_Evaluation == 0)
+                cout << "将" << i << "节点的" << block_temp << "块迁移至" << target_disk << "节点" << endl;
+            disks[target_disk].push_back(block_temp);
+            for (int j = 0; j < block_location[block_temp].size(); j++) {
+                G[target_disk][block_location[block_temp][j]]++;
+                G[block_location[block_temp][j]][target_disk]++;
+            }
+            block_location[block_temp].push_back(target_disk);
+        }
+    }
+    //检查是否达到理想最优解
+    if (g_Evaluation == 0) {
+        cout << "理想最优解为" << g_Optimal << endl;
+        cout << "缩容后各节点中的块数：" << endl;
+        for (int i = 0; i < g_DiskNumOrigin; i++) {
+            cout << disks[i].size() << " ";
+        }
+        cout << endl;
+    }
+    cout << "缩容后的邻接矩阵：" << endl;
+    int is_optimal = 1;
+    for (int i = 0; i < g_DiskNumAfterScale; i++) {
+        for (int j = 0; j < g_DiskNumAfterScale; j++) {
+            cout << G[i][j] << " ";
+            if (G[i][j] > g_Optimal) {
+                is_optimal = 0;
+            }
+        }
+        cout << endl;
+    }
+    if (g_Evaluation == 0) {
+        if (is_optimal == 1) {
+            cout << "得到理想最优解" << endl;
+        } else {
+            cout << "未能得到理想最优解" << endl;
+        }
+    }
+}
+
+/**
+ * @brief   数据重新分布函数
+ */
+void Redistribute(){
+    for (int i = g_DiskNumOrigin + 1; i < g_MaxDiskNum; i++) {
+        if ((g_N * g_StripeNum) % i == 0) {
+            g_DiskNumAfterScale = i;
+            break;
+        }
+    }
+    cout << "虚拟扩容节点数为" << g_DiskNumAfterScale << endl;
+    g_Optimal = 1 + (g_K * g_StripeNum * g_N) / (g_DiskNumAfterScale * (g_DiskNumAfterScale - 1));
+    SUDExpand();
+    int temp = g_DiskNumAfterScale;
+    g_DiskNumAfterScale = g_DiskNumOrigin;
+    g_DiskNumOrigin = temp;
+    g_Optimal = 1 + (g_K * g_StripeNum * g_N) / (g_DiskNumAfterScale * (g_DiskNumAfterScale - 1));
+    SUDShrink();
 }
 
 /**
  * @brief   评估函数
  */
 void Evaluation(){
-    //TODO
+    double cost;
+    int max;
+    if (g_DiskNumOrigin < g_DiskNumAfterScale) {
+        InitDisks();
+        cout << "根据随机数据生成的邻接矩阵：" << endl;
+        InitGraph();
+        SUDExpand();
+        for(int i = 0; i < g_DiskNumAfterScale; i++) {
+            max = 0;
+            for (int j = 0; j < g_DiskNumAfterScale; j++) {
+                max = G[i][j] > max ? G[i][j] : max;
+            }
+            cost += (double)max;
+        }
+        cost = (double)cost / g_DiskNumAfterScale;
+        cout << "平均传输开销：" << cost << endl << endl;
+        int temp = g_DiskNumOrigin;
+        g_DiskNumOrigin = g_DiskNumAfterScale;
+        disks.clear();
+        block_location.clear();
+        for (int i = 0; i < g_DiskNumAfterScale; i++) {
+            for (int j = 0; j < g_DiskNumAfterScale; j++) {
+                G[i][j] = 0;
+            }
+        }
+        InitDisks();
+        cout << "随机扩展后生成的邻接矩阵：" << endl;
+        InitGraph();
+        for(int i = 0; i < g_DiskNumAfterScale; i++) {
+            max = 0;
+            for (int j = 0; j < g_DiskNumAfterScale; j++) {
+                max = G[i][j] > max ? G[i][j] : max;
+            }
+            cost += (double)max;
+        }
+        cost = (double)cost / g_DiskNumAfterScale;
+        cout << "平均传输开销：" << cost << endl << endl;
+        g_DiskNumOrigin = temp;
+    } else if (g_DiskNumOrigin > g_DiskNumAfterScale) {
+        InitDisks();
+        cout << "根据随机数据生成的邻接矩阵：" << endl;
+        InitGraph();
+        SUDShrink();
+        for(int i = 0; i < g_DiskNumAfterScale; i++) {
+            max = 0;
+            for (int j = 0; j < g_DiskNumAfterScale; j++) {
+                max = G[i][j] > max ? G[i][j] : max;
+            }
+            cost += (double)max;
+        }
+        cost = (double)cost / g_DiskNumAfterScale;
+        cout << "平均传输开销：" << cost << endl << endl;
+        int temp = g_DiskNumOrigin;
+        g_DiskNumOrigin = g_DiskNumAfterScale;
+        disks.clear();
+        block_location.clear();
+        for (int i = 0; i < g_DiskNumAfterScale; i++) {
+            for (int j = 0; j < g_DiskNumAfterScale; j++) {
+                G[i][j] = 0;
+            }
+        }
+        InitDisks();
+        cout << "随机缩容后生成的邻接矩阵：" << endl;
+        InitGraph();
+        for(int i = 0; i < g_DiskNumAfterScale; i++) {
+            max = 0;
+            for (int j = 0; j < g_DiskNumAfterScale; j++) {
+                max = G[i][j] > max ? G[i][j] : max;
+            }
+            cost += (double)max;
+        }
+        cost = (double)cost / g_DiskNumAfterScale;
+        cout << "平均传输开销：" << cost << endl << endl;
+        g_DiskNumOrigin = temp;
+    }
 }
 
 
@@ -273,12 +470,21 @@ int main() {
         cout << "Error: 无法保证各节点中块数相同" << endl;
         return 0;
     }
-    InitDisks();
-    InitGraph();
-    if (g_DiskNumOrigin < g_DiskNumAfterScale) {
-        SUDExpand();
-    } else if (g_DiskNumOrigin > g_DiskNumAfterScale) {
-        SUDShrink();
+    if (g_Evaluation == 0) {
+        InitDisks();
+        InitGraph();
+        if (g_DiskNumOrigin < g_DiskNumAfterScale) {
+            //执行扩容操作
+            SUDExpand();
+        } else if (g_DiskNumOrigin > g_DiskNumAfterScale) {
+            //执行缩容操作
+            SUDShrink();
+        } else {
+            //执行数据重新分布操作
+            Redistribute();
+        }
+    } else {
+        Evaluation();
     }
     return 0;
 }
